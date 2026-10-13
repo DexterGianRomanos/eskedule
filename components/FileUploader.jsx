@@ -5,34 +5,59 @@ import { Upload, Camera, Sparkles, Loader2 } from 'lucide-react';
 export default function FileUploader({ onScanComplete, openCamera }) {
   const [loading, setLoading] = useState(false);
 
+  const convertFileToBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = (error) => reject(error);
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleFileUpload = async (file) => {
     if (!file) return;
+
+    // Validate size (limit to 10MB to prevent browser/network payload crashes)
+    if (file.size > 10 * 1024 * 1024) {
+      alert('File size exceeds 10MB. Please upload a smaller image or PDF.');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const base64Data = reader.result.split(',')[1];
-        const mimeType = file.type;
+      // 1. Safely await base64 conversion inside the try block
+      const dataUrl = await convertFileToBase64(file);
+      const base64Data = dataUrl.split(',')[1];
+      const mimeType = file.type || 'image/jpeg';
 
-        const res = await fetch('/api/scan', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ base64Data, mimeType }),
-        });
+      if (!base64Data) {
+        throw new Error('Failed to read file contents.');
+      }
 
-        const data = await res.json();
-        if (data.classes) {
-          onScanComplete(data.classes);
-        } else {
-          alert('Could not parse schedule. Try a clearer image.');
-        }
-        setLoading(false);
-      };
-      reader.readAsDataURL(file);
+      // 2. Perform server API call
+      const res = await fetch('/api/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ base64Data, mimeType }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Server error while parsing schedule');
+      }
+
+      if (data.classes && Array.isArray(data.classes) && data.classes.length > 0) {
+        onScanComplete(data.classes);
+      } else {
+        alert('Could not find any clear schedule data. Try a clearer image or document.');
+      }
     } catch (err) {
-      console.error(err);
-      alert('Error reading file');
+      console.error('File Upload Error:', err);
+      alert(err.message || 'Error processing file. Please try again.');
+    } finally {
+      // Always resets loading state, whether succeeded or failed
       setLoading(false);
     }
   };
@@ -68,11 +93,18 @@ export default function FileUploader({ onScanComplete, openCamera }) {
                   type="file"
                   accept="image/*,application/pdf"
                   className="hidden"
-                  onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])}
+                  onChange={(e) => {
+                    const selectedFile = e.target.files?.[0];
+                    if (selectedFile) {
+                      handleFileUpload(selectedFile);
+                      e.target.value = ''; // Reset input to allow re-uploading the same file
+                    }
+                  }}
                 />
               </label>
 
               <button
+                type="button"
                 onClick={openCamera}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-medium text-sm transition"
               >
