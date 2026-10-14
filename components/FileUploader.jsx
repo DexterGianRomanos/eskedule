@@ -17,15 +17,16 @@ export default function FileUploader({ onScanComplete, openCamera }) {
   const handleFileUpload = async (file) => {
     if (!file) return;
 
+    // Validate size (limit to 10MB to prevent browser/network payload crashes)
     if (file.size > 10 * 1024 * 1024) {
       alert('File size exceeds 10MB. Please upload a smaller image or PDF.');
       return;
     }
 
     setLoading(true);
-    const startTime = Date.now();
 
     try {
+      // 1. Safely await base64 conversion inside the try block
       const dataUrl = await convertFileToBase64(file);
       const base64Data = dataUrl.split(',')[1];
       const mimeType = file.type || 'image/jpeg';
@@ -34,7 +35,7 @@ export default function FileUploader({ onScanComplete, openCamera }) {
         throw new Error('Failed to read file contents.');
       }
 
-      // Perform API request
+      // 2. Perform server API call
       const res = await fetch('/api/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -47,13 +48,6 @@ export default function FileUploader({ onScanComplete, openCamera }) {
         throw new Error(data.error || 'Server error while parsing schedule');
       }
 
-      // Calculate elapsed time and enforce a minimum 3-second loader display
-      const elapsedTime = Date.now() - startTime;
-      const minLoadingTime = 3000; // 3000ms = 3 seconds
-      if (elapsedTime < minLoadingTime) {
-        await new Promise((resolve) => setTimeout(resolve, minLoadingTime - elapsedTime));
-      }
-
       if (data.classes && Array.isArray(data.classes) && data.classes.length > 0) {
         onScanComplete(data.classes);
       } else {
@@ -63,6 +57,7 @@ export default function FileUploader({ onScanComplete, openCamera }) {
       console.error('File Upload Error:', err);
       alert(err.message || 'Error processing file. Please try again.');
     } finally {
+      // Always resets loading state, whether succeeded or failed
       setLoading(false);
     }
   };
@@ -71,14 +66,12 @@ export default function FileUploader({ onScanComplete, openCamera }) {
     <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
       <div className="flex flex-col items-center justify-center border-2 border-dashed border-indigo-200 dark:border-indigo-900/60 rounded-xl p-8 text-center bg-indigo-50/50 dark:bg-slate-900/40">
         {loading ? (
-          <div className="flex flex-col items-center gap-3 py-6 animate-fade-in">
-            <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
-            <p className="font-semibold text-base text-slate-800 dark:text-slate-100">
+          <div className="flex flex-col items-center gap-3 py-4">
+            <Loader2 className="w-10 h-10 text-indigo-600 animate-spin" />
+            <p className="font-medium text-slate-700 dark:text-slate-200">
               Gemini AI is scanning your schedule...
             </p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Analyzing timetable layout, course codes, and room assignments
-            </p>
+            <p className="text-xs text-slate-400">Extracting courses, times, and rooms</p>
           </div>
         ) : (
           <>
@@ -104,7 +97,7 @@ export default function FileUploader({ onScanComplete, openCamera }) {
                     const selectedFile = e.target.files?.[0];
                     if (selectedFile) {
                       handleFileUpload(selectedFile);
-                      e.target.value = '';
+                      e.target.value = ''; // Reset input to allow re-uploading the same file
                     }
                   }}
                 />
