@@ -69,7 +69,7 @@ export default function FileUploader({ onScanComplete, openCamera }) {
           <div className="flex flex-col items-center gap-3 py-4">
             <Loader2 className="w-10 h-10 text-indigo-600 animate-spin" />
             <p className="font-medium text-slate-700 dark:text-slate-200">
-              Gemini AI is scanning your schedule...
+              Eskedule is scanning your schedule...
             </p>
             <p className="text-xs text-slate-400">Extracting courses, times, and rooms</p>
           </div>
